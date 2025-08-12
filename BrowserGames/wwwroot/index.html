@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="">
+<head>
+    <meta charset="utf-8"/>
+    <title></title>
+    <style>
+        table {
+            border: 0
+        }
+
+        .commslog-data {
+            font-family: Consolas, Courier New, Courier, monospace;
+        }
+
+        .commslog-server {
+            background-color: red;
+            color: white
+        }
+
+        .commslog-client {
+            background-color: green;
+            color: white
+        }
+    </style>
+    <script src="~/lib/signalr/signalr.js"></script>
+    <script src="lib/signalr/signalr.js"></script>
+</head>
+<body>
+<h1>SignalR Sample Application</h1>
+<p id="stateLabel">Ready to connect...</p>
+<div>
+    <label for="connectionUrl">SignalR Hub URL:</label>
+    <input id="connectionUrl"/>
+    <button id="connectButton" type="submit">Connect</button>
+</div>
+<p></p>
+<div>
+    <label for="sendMessage">Message to send:</label>
+    <input id="sendMessage" disabled/>
+    <button id="sendButton" type="submit" disabled>Send</button>
+    <button id="closeButton" disabled>Close Socket</button>
+</div>
+
+<h2>Communication Log</h2>
+<table style="width: 800px">
+    <thead>
+    <tr>
+        <td style="width: 100px">From</td>
+        <td style="width: 100px">To</td>
+        <td>Data</td>
+    </tr>
+    </thead>
+    <tbody id="commsLog">
+    </tbody>
+</table>
+
+<script>
+    const connectionUrl = document.getElementById("connectionUrl");
+    const connectButton = document.getElementById("connectButton");
+    const stateLabel = document.getElementById("stateLabel");
+    const sendMessage = document.getElementById("sendMessage");
+    const sendButton = document.getElementById("sendButton");
+    const commsLog = document.getElementById("commsLog");
+    const closeButton = document.getElementById("closeButton");
+    let connection;
+
+    const scheme = document.location.protocol;
+    const port = document.location.port ? (":" + document.location.port) : "";
+
+    connectionUrl.value = "/testHub";
+
+    function updateState() {
+        function disable() {
+            sendMessage.disabled = true;
+            sendButton.disabled = true;
+            closeButton.disabled = true;
+        }
+
+        function enable() {
+            sendMessage.disabled = false;
+            sendButton.disabled = false;
+            closeButton.disabled = false;
+        }
+
+        connectionUrl.disabled = true;
+        connectButton.disabled = true;
+
+        if (!connection) {
+            disable();
+        } else {
+            switch (connection.state) {
+                case signalR.HubConnectionState.Disconnected:
+                    stateLabel.innerHTML = "Closed";
+                    disable();
+                    connectionUrl.disabled = false;
+                    connectButton.disabled = false;
+                    break;
+                case signalR.HubConnectionState.Disconnecting:
+                    stateLabel.innerHTML = "Closing...";
+                    disable();
+                    break;
+                case signalR.HubConnectionState.Connecting:
+                    stateLabel.innerHTML = "Connecting...";
+                    disable();
+                    break;
+                case signalR.HubConnectionState.Connected:
+                    stateLabel.innerHTML = "Open";
+                    enable();
+                    break;
+                default:
+                    stateLabel.innerHTML = "Unknown WebSocket State: " + htmlEscape(connection.readyState);
+                    disable();
+                    break;
+            }
+        }
+    }
+
+    closeButton.onclick = function () {
+        if (!connection || connection.state !== signalR.HubConnectionState.Connected) {
+            alert("socket not connected");
+        }
+        connection.stop()
+    };
+
+    sendButton.onclick = function () {
+        if (!connection || connection.state !== signalR.HubConnectionState.Connected) {
+            alert("not connected");
+        }
+        const data = sendMessage.value;
+        connection.send("SendMessage", "client", data);
+        commsLog.innerHTML += '<tr>' +
+            '<td class="commslog-client">Client</td>' +
+            '<td class="commslog-server">Server</td>' +
+            '<td class="commslog-data">' + htmlEscape(data) + '</td></tr>';
+    };
+
+    connectButton.onclick = async function () {
+        stateLabel.innerHTML = "Connecting";
+        connection = (new signalR.HubConnectionBuilder())
+            .withUrl(connectionUrl.value)
+            .configureLogging(signalR.LogLevel.Information)
+            .build();
+        
+        await connection.start();
+        updateState();
+        commsLog.innerHTML += '<tr>' +
+            '<td colspan="3" class="commslog-data">Connection opened</td>' +
+            '</tr>';
+        
+        connection.onclose = function () {
+            updateState();
+            commsLog.innerHTML += '<tr>' +
+                '<td colspan="3" class="commslog-data">Connection closed.</td>' +
+                '</tr>';
+        };
+        connection.on("ReceiveMessage", (user, message) => {
+            commsLog.innerHTML += '<tr>' +
+                '<td class="commslog-server">Server</td>' +
+                '<td class="commslog-client">Client</td>' +
+                '<td class="commslog-data">' + htmlEscape(user + ': ' + message) + '</td></tr>';
+        });
+    };
+
+    function htmlEscape(str) {
+        return str.toString()
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+</script>
+</body>
+</html>
