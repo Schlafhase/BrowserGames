@@ -36,8 +36,11 @@ public class PretenderGame
             State = PretenderState.Voting;
         }
     }
-    
+
     public void Vote()
+    {
+        
+    }
 }
 
 public enum PretenderMode
